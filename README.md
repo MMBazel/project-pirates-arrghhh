@@ -1,4 +1,4 @@
-# project-pirates-arrghhh
+# Examples of type of figures & graphs produced
 
 ![Example Figure 1](/Boxplot of Cohort Data.PNG  "Infringements Across Time by Company")
 
