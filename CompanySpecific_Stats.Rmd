@@ -1,0 +1,146 @@
+
+
+## Sites Across Time (By Company: CompanyZ) 
+Site rank determined overall (total, across three years)
+
+
+Top 5 of all time infringing sites (Company: CompanyZ)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating the list of top sites for company with ID = CompanyZ
+Sites_CompanyZ<-top5DF %>%
+  filter(company_id == 'CompanyZ') %>%
+  group_by(site) %>% 
+  summarise(total = sum(count)) %>%
+  arrange(desc(total))
+
+#Creating just the top 5 by all time
+top5Sites_CompanyZ<-Sites_CompanyZ[1:5,]
+knitr::kable(top5Sites_CompanyZ)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#http://docs.ggplot2.org/dev/vignettes/themes.html
+ggplot(data=top5Sites_CompanyZ,aes(x=reorder(site,-total),y=total,fill=site)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyZ$total)+5000,10000))+
+  expand_limits(y=max(top5Sites_CompanyZ$total)+5000)+
+  labs(title=expression(atop("Top 5 Infringing Sites:", atop(italic("Company CompanyZ, All Years"), ""))),x='Sites',y='Infringements')+
+  guides(fill=FALSE)+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.title=element_text(face="bold"))+
+  scale_fill_brewer()
+```
+
+
+Top 5 Infringing Sites versus Time (Company: CompanyZ)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating vector of site names for company ID = CompanyZ to be merged against the top5DF 
+#SO we can get all the associated links
+#Reminder of merge syntax: top5DF<-merge(x = top5PubList, y = allTimeData, by = "company_id", all.x = TRUE)  
+
+top5Sites_CompanyZ_list<-top5Sites_CompanyZ[,1]
+
+top5DF_CompanyZ<-top5DF %>%
+  filter(company_id=='CompanyZ')
+
+top5Sites_CompanyZ_df<-merge(x = top5Sites_CompanyZ_list, y = top5DF_CompanyZ, by = "site", all.x = TRUE)
+
+#Making a wide data frame: top5PubInfrgs.wide<-spread(top5PubInfrgs,year,total) 
+
+top5Sites_CompanyZ_SitesVYear<-top5Sites_CompanyZ_df %>%
+  group_by(site,year) %>%
+  summarise(total = sum(count))
+  
+top5Sites_CompanyZ_SitesVYear.wide<-spread(top5Sites_CompanyZ_SitesVYear,year,total) 
+
+knitr::kable(top5Sites_CompanyZ_SitesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=top5Sites_CompanyZ_SitesVYear, aes(x=factor(year), y=total, group=site, colour=site)) +
+    geom_line() +
+    geom_point() +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyZ_SitesVYear$total)+5000,5000))+
+  expand_limits(y=max(top5Sites_CompanyZ_SitesVYear$total)+5000)+
+  expand_limits(y=-2000)+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  labs(title=expression(atop("Top 5 Infringing Sites:", atop(italic("Company CompanyZ, Per Year")))),x='Year',y='Infringements')+
+  scale_colour_brewer(palette = "Set1",name="Site")
+  
+```
+
+
+
+
+Top infringing Site (for Company CompanyZ)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+topSite_CompanyZ_titles<-top5Sites_CompanyZ_df %>%
+  filter(site=='chomikuj.pl') %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+print("Top 5 Infringed Titles on Site: chomikuj.pl for Company CompanyZ")
+topSite_CompanyZ_titles_top5<-topSite_CompanyZ_titles[1:5,]
+knitr::kable(topSite_CompanyZ_titles_top5)
+
+
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+
+ggplot(data=topSite_CompanyZ_titles_top5,aes(x=reorder(group_title,-total),y=total,fill=group_title)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyZ_titles_top5$total)+200,100))+
+  expand_limits(y=max(topSite_CompanyZ_titles_top5$total)+200)+
+  labs(title=expression(atop("Top 5 Infringed Titles:", atop(italic("Company CompanyZ, Site: chomikuj.pl")))),x='Title Names',y='Infringements')+
+  guides(fill=FALSE)+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.title=element_text(face="bold"),
+      plot.margin=unit(c(1,1,1.5,1.2),"lines"))+
+  scale_fill_brewer()
+  
+
+```
+
+
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Getting associated links again
+topSite_CompanyZ_titles_list<-topSite_CompanyZ_titles_top5[,1]
+topSite_CompanyZ_titles_df<-merge(x = topSite_CompanyZ_titles_list, y = top5DF_CompanyZ, by = "group_title", all.x = TRUE)
+
+topSite_CompanyZ_titlesVYear<-topSite_CompanyZ_titles_df %>%
+  group_by(group_title,year) %>%
+  summarise(total=sum(count))
+
+topSite_CompanyZ_titlesVYear.wide<-spread(topSite_CompanyZ_titlesVYear,year,total) 
+
+print("Top 5 Infringed Titles on Site: chomikuj.pl for Company CompanyZ Over Time")
+knitr::kable(topSite_CompanyZ_titlesVYear.wide)
+```
+
+```{r}
+ggplot(data=topSite_CompanyZ_titlesVYear, aes(x=factor(year), y=total, group=group_title, colour=group_title)) +
+    geom_line() +
+    geom_point()+
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyZ_titlesVYear$total)+300,200))+
+  expand_limits(y=max(topSite_CompanyZ_titlesVYear$total)+300)+    #expand y axis
+  labs(title=expression(atop("Top 5 Infringed Titles:", atop(italic("Company CompanyZ, Site: chomikuj.pl, Per Year"), ""))),x='Year',y='Infringements')+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  scale_colour_brewer(palette = "Set1",name="Title Names")
+```
+

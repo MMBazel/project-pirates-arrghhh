@@ -1,0 +1,1238 @@
+---
+title: "Sec 512 Statistics_First Round"
+author: "Mikiko Bazeley"
+date: "February 26, 2016"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r-Data Munging,echo=FALSE,warning=FALSE,error=FALSE}
+#Resources
+#Resource 1: http://blog.rstudio.org/2014/07/22/introducing-tidyr/
+#Resource 2: https://www.rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf
+
+
+setwd("C:\\Users\\mbazeley\\Desktop\\Sec_512_Commentary\\New_Data_Export")
+
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(readxl)
+library(extrafontdb)
+library(extrafont)
+
+
+data2013<-read.csv("data2013.csv")
+data2014<-read.csv("data2014.csv")
+data2015<-read.csv("data2015.csv")
+
+#Subsetting the relevant dataframes for clean columns that show:
+#Company_ID, group_title, site, count
+data2013<-data2013[,1:4]
+data2014<-data2014[,1:4]
+data2015<-data2015[,1:4]
+
+#Manual method of coding sets based on year to keep track
+data2013$year<-'2013'
+data2014$year<-'2014'
+data2015$year<-'2015'
+
+
+#Renaming columns
+colnames(data2013)<-c("company_id","group_title","site","count","year")
+colnames(data2014)<-c("company_id","group_title","site","count","year")
+colnames(data2015)<-c("company_id","group_title","site","count","year")
+
+
+#Setting names == to each other allows us to check that columns match for when we append the data frames to each other
+#rbind() is what we use for appending
+names(data2013)==names(data2014)
+allTimeData<-rbind(data2013,data2014)
+
+names(allTimeData)==names(data2015)
+allTimeData<-rbind(allTimeData,data2015)
+
+#Idally the number of records should equal the sum of all three data sets
+print(nrow(data2013)+nrow(data2014)+nrow(data2015))
+print(nrow(allTimeData))
+
+allTimeData$company_id<-as.factor(allTimeData$company_id)
+```
+
+```{r-Creating wide data frame(1),echo=FALSE,warning=FALSE,error=FALSE}
+#This gives the total inringements per company per year
+TotalInfrgs.Company.Year <-allTimeData %>%
+  group_by(company_id,year) %>%
+  summarise(n=n())
+
+#Creating a wide version
+#Comments: Data frame ==> TotalInfrgs.Company.Year is the long form (not filtered) with Company ID | year | n
+TotalInfrgs.Company.Year.wide<-spread(TotalInfrgs.Company.Year,year,n)
+
+
+colnames(TotalInfrgs.Company.Year.wide)<-c("company_id","y2013","y2014","y2015")
+
+#Dataframes being used: historic_Year_Comp {Only those companies we have data on all 3 years}
+historic_Year_Comp<-TotalInfrgs.Company.Year.wide %>%
+  filter(!is.na(y2015)) %>%
+  filter(!is.na(y2014)) %>%
+  filter(!is.na(y2013))
+
+```
+
+```{r-Create cohort data frame,echo=FALSE,warning=FALSE,error=FALSE}
+#subset list of companies that have all three years of data
+#We can do a left outer join of the cohort list on the totalDataSet
+cohortList<-historic_Year_Comp[,1]
+
+allDataCohort<-merge(x = cohortList, y = allTimeData, by = "company_id", all.x = TRUE)  
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Dataframes being used: historic_Year_Comp {Only those companies we have data on all 3 years}
+
+historic_Year_Comp.gathered<-historic_Year_Comp %>%
+  select(1:4) 
+
+historic_Year_Comp.gathered<-historic_Year_Comp.gathered %>%
+  gather(year, n,y2013:y2015)
+#historic_Year_Comp.gathered: This creates a long data frame with (company_id,year,n)
+
+```
+
+
+# First Layer Summary Stats 
+
+
+***
+
+
+## (Segmented: Cohort, All Time)
+
+### Distribution of infringements per year (all publishers)
+
+
+```{r-Distribution of infringements per year (all publishers),echo=FALSE,warning=FALSE,error=FALSE}
+#Sec: Distribution of infringements per year (all publishers)
+
+summary(historic_Year_Comp.gathered$n)
+
+historic_Year_Comp.gathered.y2013 <- historic_Year_Comp.gathered %>%
+  filter(year=='y2013')
+
+
+historic_Year_Comp.gathered.y2014 <- historic_Year_Comp.gathered %>%
+  filter(year=='y2014')
+
+
+historic_Year_Comp.gathered.y2015 <- historic_Year_Comp.gathered %>%
+  filter(year=='y2015')
+
+
+print("Summary Stats: 2013")
+summary(historic_Year_Comp.gathered.y2013$n)
+
+print("Summary Stats: 2014")
+summary(historic_Year_Comp.gathered.y2014$n)
+
+print("Summary Stats: 2015")
+summary(historic_Year_Comp.gathered.y2015$n)
+```
+
+
+***
+
+
+### Boxplot of cohort data- Infringements across Time (raw)
+
+
+```{r-Boxplot,echo=FALSE,warning=FALSE,error=FALSE}
+#Box plot
+oldGraph_actual=ggplot(data=historic_Year_Comp.gathered,aes(y=n,x=year))+
+  geom_boxplot()
+oldGraph_actual
+```
+
+
+### Boxplot of cohort data- Infringements across Time (main points magnified)
+
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#http://stackoverflow.com/questions/5677885/ignore-outliers-in-ggplot2-boxplot
+#Zooming in on boxplots
+
+ylim1=boxplot.stats(historic_Year_Comp.gathered$n)$stats[c(1,5)]
+newGraph_actual = oldGraph_actual+coord_cartesian(ylim=ylim1*1.05)
+newGraph_actual
+```
+
+
+***
+
+
+### Distributions of infringements across publishers (all time)
+
+
+```{r-Distributions of infringemrnts across publishers (all time),echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsPubAllTime<-historic_Year_Comp %>%
+  select(company_id,y2013,y2014,y2015) %>%
+  gather(year, n,y2013:y2015) %>%
+  group_by(company_id) %>%
+  summarise(total=sum(n))
+
+summary(InfrgsPubAllTime$total)
+```
+
+
+***
+
+
+### Distribution of infringements across titles (all time)
+
+
+```{r-Distribution of infringements across titles (all time),echo=FALSE,warning=FALSE,error=FALSE}
+#Merge original data frame allTimeData with historic_year_comp
+#Segment out list of company ID's for the 3 year cohort
+#Join allTimeData to 3 year company_ID list 
+cohortList<-historic_Year_Comp[,1]
+
+allDataCohort<-merge(x = cohortList, y = allTimeData, by = "company_id", all.x = TRUE)  
+
+InfrgsTitleAllTime <- allDataCohort %>%
+  select(group_title,count) %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count))
+
+summary(InfrgsTitleAllTime$total)
+```
+
+
+***
+
+
+### Distribution of infringements across sites (all time)
+
+
+```{r-Distribution of infringements across sites (all time),echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsSitesAllTime <- allDataCohort %>%
+  select(site, count) %>%
+  group_by(site) %>%
+  summarise(total=sum(count))
+
+summary(InfrgsSitesAllTime$total)
+```
+
+
+***
+
+
+## (Segmented: Cohort, By Time)
+
+## Year 2013
+
+### Distribution of Infringements Across Top Ten Infringed Titles (Year 2013)
+
+```{r-Distrb Infrgs per Title- Top Ten Infringed Titles-2013,echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsTitles2013 <- allDataCohort %>%
+  select(year,group_title,count) %>%
+  filter(year=='2013') %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+InfrgsTitles2013_Top10<-InfrgsTitles2013[1:10,]
+knitr::kable(InfrgsTitles2013_Top10)
+summary(InfrgsTitles2013_Top10$total)
+
+```
+
+### Distribution of Infringements Across Top Ten Infringing Sites (Year 2013)
+
+```{r-Distrb Infrgs per Site- Top Ten Infringing Sites-2013,echo=FALSE,warning=FALSE,error=FALSE}
+#http://stackoverflow.com/questions/23338830/ggplot2-use-scale-colour-brewer-and-specify-legend-name-entry-labels-manual
+InfrgsSites2013 <- allDataCohort %>%
+  select(year,site,count) %>%
+  filter(year=='2013') %>%
+  group_by(site) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+InfrgsSites2013_Top10<-InfrgsSites2013[1:10,]
+knitr::kable(InfrgsSites2013_Top10)
+summary(InfrgsSites2013_Top10$total)
+
+```
+
+### Distribution of Infringements Across Top Ten Infringed Publishers (Year 2013)
+
+```{r-Distrb Infrgs per Publisher- Top Ten Infringed Publishers-2013,echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsPubs2013 <- allDataCohort %>%
+  select(year,company_id,count) %>%
+  filter(year=='2013') %>%
+  group_by(company_id) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+InfrgsPubs2013_Top10<-InfrgsPubs2013[1:10,]
+knitr::kable(InfrgsPubs2013_Top10)
+summary(InfrgsPubs2013_Top10$total)
+
+```
+
+
+***
+
+
+## Year 2014
+
+###  Distribution of Infringements Across Top Ten Infringed Titles (Year 2014)
+
+```{r-Distrb Infrgs per Title- Top Ten Infringed Titles-2014,echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsTitles2014 <- allDataCohort %>%
+  select(year,group_title,count) %>%
+  filter(year=='2014') %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+InfrgsTitles2014_Top10<-InfrgsTitles2014[1:10,]
+knitr::kable(InfrgsTitles2014_Top10)
+summary(InfrgsTitles2014_Top10$total)
+```
+
+###  Distribution of Infringements Across Top Ten Infringing Sites (Year 2014)
+
+```{r-Distrb Infrgs per Site- Top Ten Infringing Sites-2014,echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsSites2014 <- allDataCohort %>%
+  select(year,site,count) %>%
+  filter(year=='2014') %>%
+  group_by(site) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+InfrgsSites2014_Top10<-InfrgsSites2014[1:10,]
+knitr::kable(InfrgsSites2014_Top10)
+summary(InfrgsSites2014_Top10$total)
+
+```
+
+###  Distribution of Infringements Across Top Ten Infringed Publishers (Year 2014)
+
+```{r-Distrb Infrgs per Publisher- Top Ten Infringed Publishers-2014,echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsPubs2014 <- allDataCohort %>%
+  select(year,company_id,count) %>%
+  filter(year=='2014') %>%
+  group_by(company_id) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+InfrgsPubs2014_Top10<-InfrgsPubs2014[1:10,]
+knitr::kable(InfrgsPubs2014_Top10)
+summary(InfrgsPubs2014_Top10$total)
+
+```
+
+
+***
+
+
+
+## Year 2015
+
+### Distribution of Infringements Across Top Ten Infringed Titles (Year 2015)
+
+```{r-Distrb Infrgs per Title- Top Ten Infringed Titles-2015,echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsTitles2015 <- allDataCohort %>%
+  select(year,group_title,count) %>%
+  filter(year=='2015') %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+InfrgsTitles2015_Top10<-InfrgsTitles2015[1:10,]
+knitr::kable(InfrgsTitles2015_Top10)
+summary(InfrgsTitles2015_Top10$total)
+
+```
+
+### Distribution of Infringements Across Top Ten Infringing Sites (Year 2015)
+
+```{r-Distrb Infrgs per Site- Top Ten Infringing Sites-2015,echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsSites2015 <- allDataCohort %>%
+  select(year,site,count) %>%
+  filter(year=='2015') %>%
+  group_by(site) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+InfrgsSites2015_Top10<-InfrgsSites2015[1:10,]
+knitr::kable(InfrgsSites2015_Top10)
+summary(InfrgsSites2015_Top10$total)
+
+```
+
+### Distribution of Infringements Across Top Ten Infringed Publishers (Year 2015)
+
+```{r-Distrb Infrgs per Publisher- Top Ten Infringed Publishers-2015,echo=FALSE,warning=FALSE,error=FALSE}
+InfrgsPubs2015 <- allDataCohort %>%
+  select(year,company_id,count) %>%
+  filter(year=='2015') %>%
+  group_by(company_id) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+InfrgsPubs2015_Top10<-InfrgsPubs2015[1:10,]
+knitr::kable(InfrgsPubs2015_Top10)
+summary(InfrgsPubs2015_Top10$total)
+
+```
+
+
+***
+
+
+## Visual Comparison of Top Ten (from cohort) Summary Stats over Time
+
+
+
+###   Summary Stats of the Top Ten Infringed Titles over Time
+
+```{r-Boxplot of Top Ten Summary-Titles,echo=FALSE,warning=FALSE,error=FALSE}
+#Combine the Top Ten data sets created earlier for years: 2013, 2014, 2015 using rbind 
+InfrgsTitles2013_Top10$year<-'2013'
+InfrgsTitles2014_Top10$year<-'2014'
+InfrgsTitles2015_Top10$year<-'2015'
+
+InfrgsTitlesTop10AllYrs<-rbind(InfrgsTitles2013_Top10,InfrgsTitles2014_Top10)
+InfrgsTitlesTop10AllYrs<-rbind(InfrgsTitlesTop10AllYrs,InfrgsTitles2015_Top10)
+
+ggplot(data=InfrgsTitlesTop10AllYrs,aes(y=total,x=year))+
+  geom_boxplot()
+```
+
+
+
+###   Summary Stats of the Top Ten Infringing Sites over Time
+
+```{r-Boxplot of Top Ten Summary-Sites,echo=FALSE,warning=FALSE,error=FALSE}
+#Combine the Top Ten data sets created earlier for years: 2013, 2014, 2015 using rbind
+InfrgsSites2013_Top10$year<-'2013'
+InfrgsSites2014_Top10$year<-'2014'
+InfrgsSites2015_Top10$year<-'2015'
+
+InfrgsSitesTop10AllYrs<-rbind(InfrgsSites2013_Top10,InfrgsSites2014_Top10)
+InfrgsSitesTop10AllYrs<-rbind(InfrgsSitesTop10AllYrs,InfrgsSites2015_Top10)
+
+InfrgsSitesTop10AllYrs<-as.data.frame(InfrgsSitesTop10AllYrs)
+
+ggplot(data=InfrgsSitesTop10AllYrs,aes(y=total,x=year))+
+  geom_boxplot()
+
+```
+
+
+
+###   Summary Stats of the Top Ten Infringed Publishers over Time
+
+```{r-Boxplot of Top Ten Summary-Publishers,echo=FALSE,warning=FALSE,error=FALSE}
+#Combine the Top Ten data sets created earlier for years: 2013, 2014, 2015 using rbind
+InfrgsPubs2013_Top10$year<-'2013'
+InfrgsPubs2014_Top10$year<-'2014'
+InfrgsPubs2015_Top10$year<-'2015'
+
+InfrgsPubsTop10AllYrs<-rbind(InfrgsPubs2013_Top10,InfrgsPubs2014_Top10)
+InfrgsPubsTop10AllYrs<-rbind(InfrgsPubsTop10AllYrs,InfrgsPubs2015_Top10)
+
+ggplot(data=InfrgsPubsTop10AllYrs,aes(y=total,x=year))+
+  geom_boxplot()
+
+```
+
+***
+
+# Deeper Analysis of Top Five Publishers
+
+## Top Five Publishers of All Time
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+pubsAllTime<-allDataCohort %>%
+  group_by(company_id) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+pubsAll_top5<-pubsAllTime[1:5,]
+knitr::kable(pubsAll_top5)
+```
+
+
+***
+
+
+## Publisher Across Time (Infringements)
+
+```{r-Manager Report 1-Notices,echo=FALSE,warning=FALSE,error=FALSE}
+top5PubList<-pubsAll_top5[,1]
+top5DF<-merge(x = top5PubList, y = allTimeData, by = "company_id", all.x = TRUE)  
+
+top5PubInfrgs<- top5DF %>%
+  group_by(company_id,year) %>%
+  summarise(total=sum(count))
+
+top5PubInfrgs.wide<-spread(top5PubInfrgs,year,total) 
+colnames(top5PubInfrgs.wide)<-c("company_id","y2013","y2014","y2015")
+
+top5PubInfrgs.wide<-arrange(top5PubInfrgs.wide,desc(y2015))
+
+knitr::kable(top5PubInfrgs.wide)
+```
+
+
+***
+
+
+
+## Sites Across Time (By Company: CompanyA) 
+Site rank determined overall (total, across three years)
+
+
+Top Five of all time infringing sites (Company: CompanyA)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating the list of top sites for company with ID = CompanyA
+Sites_CompanyA<-top5DF %>%
+  filter(company_id == 'CompanyA') %>%
+  group_by(site) %>% 
+  summarise(total = sum(count)) %>%
+  arrange(desc(total))
+
+#Creating just the Top Five by all time
+top5Sites_CompanyA<-Sites_CompanyA[1:5,]
+knitr::kable(top5Sites_CompanyA)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#http://docs.ggplot2.org/dev/vignettes/themes.html
+ggplot(data=top5Sites_CompanyA,aes(x=reorder(site,-total),y=total,fill=site)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyA$total)+5000,10000))+
+  expand_limits(y=max(top5Sites_CompanyA$total)+5000)+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyA, All Years"), ""))),x='Sites',y='Infringements')+
+  guides(fill=FALSE)+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.title=element_text(face="bold"))+
+  scale_fill_brewer()
+```
+
+
+Top Five Infringing Sites versus Time (Company: CompanyA)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating vector of site names for company ID = CompanyA to be merged against the top5DF 
+#SO we can get all the associated links
+#Reminder of merge syntax: top5DF<-merge(x = top5PubList, y = allTimeData, by = "company_id", all.x = TRUE)  
+
+top5Sites_CompanyA_list<-top5Sites_CompanyA[,1]
+
+top5DF_CompanyA<-top5DF %>%
+  filter(company_id=='CompanyA')
+
+top5Sites_CompanyA_df<-merge(x = top5Sites_CompanyA_list, y = top5DF_CompanyA, by = "site", all.x = TRUE)
+
+#Making a wide data frame: top5PubInfrgs.wide<-spread(top5PubInfrgs,year,total) 
+
+top5Sites_CompanyA_SitesVYear<-top5Sites_CompanyA_df %>%
+  group_by(site,year) %>%
+  summarise(total = sum(count))
+  
+top5Sites_CompanyA_SitesVYear.wide<-spread(top5Sites_CompanyA_SitesVYear,year,total) 
+
+knitr::kable(top5Sites_CompanyA_SitesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=top5Sites_CompanyA_SitesVYear, aes(x=factor(year), y=total, group=site, colour=site)) +
+    geom_line() +
+    geom_point() +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyA_SitesVYear$total)+5000,5000))+
+  expand_limits(y=max(top5Sites_CompanyA_SitesVYear$total)+5000)+
+  expand_limits(y=-2000)+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyA, Per Year")))),x='Year',y='Infringements')+
+  scale_colour_brewer(palette = "Set1",name="Site")
+  
+```
+
+
+
+
+Top infringing Site (for Company CompanyA)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+topSite_CompanyA_titles<-top5Sites_CompanyA_df %>%
+  filter(site=='chomikuj.pl') %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+topSite_CompanyA_titles_top5<-topSite_CompanyA_titles[1:5,]
+knitr::kable(topSite_CompanyA_titles_top5)
+
+
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+
+ggplot(data=topSite_CompanyA_titles_top5,aes(x=reorder(group_title,-total),y=total,fill=group_title)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyA_titles_top5$total)+200,100))+
+  expand_limits(y=max(topSite_CompanyA_titles_top5$total)+200)+
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyA, Site: chomikuj.pl")))),x='Title Names',y='Infringements')+
+  guides(fill=FALSE)+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.title=element_text(face="bold"),
+      plot.margin=unit(c(1,1,1.5,1.2),"lines"))+
+  scale_fill_brewer()
+  
+
+```
+
+
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Getting associated links again
+topSite_CompanyA_titles_list<-topSite_CompanyA_titles_top5[,1]
+topSite_CompanyA_titles_df<-merge(x = topSite_CompanyA_titles_list, y = top5DF_CompanyA, by = "group_title", all.x = TRUE)
+
+topSite_CompanyA_titlesVYear<-topSite_CompanyA_titles_df %>%
+  group_by(group_title,year) %>%
+  summarise(total=sum(count))
+
+topSite_CompanyA_titlesVYear.wide<-spread(topSite_CompanyA_titlesVYear,year,total) 
+
+knitr::kable(topSite_CompanyA_titlesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=topSite_CompanyA_titlesVYear, aes(x=factor(year), y=total, group=group_title, colour=group_title)) +
+    geom_line() +
+    geom_point()+
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyA_titlesVYear$total)+300,200))+
+  expand_limits(y=max(topSite_CompanyA_titlesVYear$total)+300)+    #expand y axis
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyA, Site: chomikuj.pl, Per Year"), ""))),x='Year',y='Infringements')+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  scale_colour_brewer(palette = "Set1",name="Title Names")
+```
+
+
+***
+
+
+## Sites Across Time (By Company: CompanyB) 
+Site rank determined overall (total, across three years)
+
+
+Top Five of all time infringing sites (Company: CompanyB)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating the list of top sites for company with ID = CompanyB
+Sites_CompanyB<-top5DF %>%
+  filter(company_id == 'CompanyB') %>%
+  group_by(site) %>% 
+  summarise(total = sum(count)) %>%
+  arrange(desc(total))
+
+#Creating just the Top Five by all time
+top5Sites_CompanyB<-Sites_CompanyB[1:5,]
+knitr::kable(top5Sites_CompanyB)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#http://docs.ggplot2.org/dev/vignettes/themes.html
+ggplot(data=top5Sites_CompanyB,aes(x=reorder(site,-total),y=total,fill=site)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyB$total)+5000,10000))+
+  expand_limits(y=max(top5Sites_CompanyB$total)+5000)+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyB, All Years"), ""))),x='Sites',y='Infringements')+
+  guides(fill=FALSE)+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.title=element_text(face="bold"))+
+  scale_fill_brewer()
+```
+
+
+Top Five Infringing Sites versus Time (Company: CompanyB)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating vector of site names for company ID = CompanyB to be merged against the top5DF 
+#SO we can get all the associated links
+#Reminder of merge syntax: top5DF<-merge(x = top5PubList, y = allTimeData, by = "company_id", all.x = TRUE)  
+
+top5Sites_CompanyB_list<-top5Sites_CompanyB[,1]
+
+top5DF_CompanyB<-top5DF %>%
+  filter(company_id=='CompanyB')
+
+top5Sites_CompanyB_df<-merge(x = top5Sites_CompanyB_list, y = top5DF_CompanyB, by = "site", all.x = TRUE)
+
+#Making a wide data frame: top5PubInfrgs.wide<-spread(top5PubInfrgs,year,total) 
+
+top5Sites_CompanyB_SitesVYear<-top5Sites_CompanyB_df %>%
+  group_by(site,year) %>%
+  summarise(total = sum(count))
+  
+top5Sites_CompanyB_SitesVYear.wide<-spread(top5Sites_CompanyB_SitesVYear,year,total) 
+
+knitr::kable(top5Sites_CompanyB_SitesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=top5Sites_CompanyB_SitesVYear, aes(x=factor(year), y=total, group=site, colour=site)) +
+    geom_line() +
+    geom_point() +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyB_SitesVYear$total)+5000,5000))+
+  expand_limits(y=max(top5Sites_CompanyB_SitesVYear$total)+5000)+
+  expand_limits(y=-2000)+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyB, Per Year")))),x='Year',y='Infringements')+
+  scale_colour_brewer(palette = "Set1",name="Site")
+  
+```
+
+
+
+
+Top infringing Site (for Company CompanyB)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+topSite_CompanyB_titles<-top5Sites_CompanyB_df %>%
+  filter(site=='youtube.com') %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+topSite_CompanyB_titles_top5<-topSite_CompanyB_titles[1:5,]
+knitr::kable(topSite_CompanyB_titles_top5)
+
+
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+
+ggplot(data=topSite_CompanyB_titles_top5,aes(x=reorder(group_title,-total),y=total,fill=group_title)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyB_titles_top5$total)+200,500))+
+  expand_limits(y=max(topSite_CompanyB_titles_top5$total)+200)+
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyB, Site: youtube.com")))),x='Title Names',y='Infringements')+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"),
+      plot.margin=unit(c(3,2,1.5,1.2),"lines"),
+      axis.text.x=element_blank(),
+      legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"))+
+  scale_fill_brewer(name="Title Names",
+                   labels=c("Popular Title 1","Popular Title 2","Popular Title 3","Popular Title 4","Popular Title 5")
+                    )
+  
+
+```
+
+
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Getting associated links again
+topSite_CompanyB_titles_list<-topSite_CompanyB_titles_top5[,1]
+topSite_CompanyB_titles_df<-merge(x = topSite_CompanyB_titles_list, y = top5DF_CompanyB, by = "group_title", all.x = TRUE)
+
+topSite_CompanyB_titlesVYear<-topSite_CompanyB_titles_df %>%
+  group_by(group_title,year) %>%
+  summarise(total=sum(count))
+
+topSite_CompanyB_titlesVYear.wide<-spread(topSite_CompanyB_titlesVYear,year,total) 
+
+knitr::kable(topSite_CompanyB_titlesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=topSite_CompanyB_titlesVYear, aes(x=factor(year), y=total, group=group_title, colour=group_title)) +
+    geom_line() +
+    geom_point()+
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyB_titlesVYear$total)+500,500))+
+  expand_limits(y=max(topSite_CompanyB_titlesVYear$total)+500)+    #expand y axis
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyB, Site: youtube.com, Per Year"), ""))),x='Year',y='Infringements')+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  scale_colour_brewer(palette = "Set1",
+                      name="Title Names"
+                      ,labels=c("Poplar Title 1","Popular Title 2","Popular Title 3","Title 4","Title 5"))
+```
+
+
+***
+
+## Sites Across Time (By Company: CompanyC) 
+Site rank determined overall (total, across three years)
+
+
+Top Five of all time infringing sites (Company: CompanyC)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating the list of top sites for company with ID = CompanyC
+Sites_CompanyC<-top5DF %>%
+  filter(company_id == 'CompanyC') %>%
+  group_by(site) %>% 
+  summarise(total = sum(count)) %>%
+  arrange(desc(total))
+
+#Creating just the Top Five by all time
+top5Sites_CompanyC<-Sites_CompanyC[1:5,]
+knitr::kable(top5Sites_CompanyC)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#http://docs.ggplot2.org/dev/vignettes/themes.html
+ggplot(data=top5Sites_CompanyC,aes(x=reorder(site,-total),y=total,fill=site)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyC$total)+5000,10000))+
+  expand_limits(y=max(top5Sites_CompanyC$total)+5000)+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyC, All Years"), ""))),x='Sites',y='Infringements')+
+  guides(fill=FALSE)+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.title=element_text(face="bold"))+
+  scale_fill_brewer()
+```
+
+
+Top Five Infringing Sites versus Time (Company: CompanyC)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating vector of site names for company ID = CompanyC to be merged against the top5DF 
+#SO we can get all the associated links
+#Reminder of merge syntax: top5DF<-merge(x = top5PubList, y = allTimeData, by = "company_id", all.x = TRUE)  
+
+top5Sites_CompanyC_list<-top5Sites_CompanyC[,1]
+
+top5DF_CompanyC<-top5DF %>%
+  filter(company_id=='CompanyC')
+
+top5Sites_CompanyC_df<-merge(x = top5Sites_CompanyC_list, y = top5DF_CompanyC, by = "site", all.x = TRUE)
+
+#Making a wide data frame: top5PubInfrgs.wide<-spread(top5PubInfrgs,year,total) 
+
+top5Sites_CompanyC_SitesVYear<-top5Sites_CompanyC_df %>%
+  group_by(site,year) %>%
+  summarise(total = sum(count))
+  
+top5Sites_CompanyC_SitesVYear.wide<-spread(top5Sites_CompanyC_SitesVYear,year,total) 
+
+knitr::kable(top5Sites_CompanyC_SitesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=top5Sites_CompanyC_SitesVYear, aes(x=factor(year), y=total, group=site, colour=site)) +
+    geom_line() +
+    geom_point() +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyC_SitesVYear$total)+5000,5000))+
+  expand_limits(y=max(top5Sites_CompanyC_SitesVYear$total)+5000)+
+  expand_limits(y=-2000)+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyC, Per Year")))),x='Year',y='Infringements')+
+  scale_colour_brewer(palette = "Set1",name="Site")
+  
+```
+
+
+
+
+Top infringing Site (for Company CompanyC)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+topSite_CompanyC_titles<-top5Sites_CompanyC_df %>%
+  filter(site=='ryushare.com') %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+topSite_CompanyC_titles_top5<-topSite_CompanyC_titles[1:5,]
+knitr::kable(topSite_CompanyC_titles_top5)
+
+
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+
+ggplot(data=topSite_CompanyC_titles_top5,aes(x=reorder(group_title,-total),y=total,fill=group_title)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyC_titles_top5$total)+200,200))+
+  expand_limits(y=max(topSite_CompanyC_titles_top5$total)+200)+
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyC, Site: ryushare.com")))),x='Title Names',y='Infringements')+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"),
+      plot.margin=unit(c(3,2,1.5,1.2),"lines"),
+      axis.text.x=element_blank(),
+      legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"))+
+  scale_fill_brewer(name="Title Names",
+                    labels=c("Title 1","Title 2","Title 3","Title 4","Title 5"))
+```
+
+
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Getting associated links again
+topSite_CompanyC_titles_list<-topSite_CompanyC_titles_top5[,1]
+topSite_CompanyC_titles_df<-merge(x = topSite_CompanyC_titles_list, y = top5DF_CompanyC, by = "group_title", all.x = TRUE)
+
+topSite_CompanyC_titlesVYear<-topSite_CompanyC_titles_df %>%
+  group_by(group_title,year) %>%
+  summarise(total=sum(count))
+
+topSite_CompanyC_titlesVYear.wide<-spread(topSite_CompanyC_titlesVYear,year,total) 
+knitr::kable(topSite_CompanyC_titlesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=topSite_CompanyC_titlesVYear, aes(x=factor(year), y=total, group=group_title, colour=group_title)) +
+    geom_line() +
+    geom_point()+
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyC_titlesVYear$total)+500,200))+
+  expand_limits(y=max(topSite_CompanyC_titlesVYear$total)+500)+    #expand y axis
+  expand_limits(y=-50)+
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyC, Site: youtube.com, Per Year"), ""))),x='Year',y='Infringements')+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  scale_colour_brewer(palette = "Set1",
+                      name="Title Names",
+                      labels=c("Title1","Title 2","Titl 3","Title 3","Title 4","Title 5"))
+```
+
+
+***
+
+
+## Sites Across Time (By Company: CompanyD) 
+Site rank determined overall (total, across three years)
+
+
+Top Five of all time infringing sites (Company: CompanyD)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating the list of top sites for company with ID = CompanyD
+Sites_CompanyD<-top5DF %>%
+  filter(company_id == 'CompanyD') %>%
+  group_by(site) %>% 
+  summarise(total = sum(count)) %>%
+  arrange(desc(total))
+
+#Creating just the Top Five by all time
+top5Sites_CompanyD<-Sites_CompanyD[1:5,]
+knitr::kable(top5Sites_CompanyD)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#http://docs.ggplot2.org/dev/vignettes/themes.html
+ggplot(data=top5Sites_CompanyD,aes(x=reorder(site,-total),y=total,fill=site)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyD$total)+5000,10000))+
+  expand_limits(y=max(top5Sites_CompanyD$total)+5000)+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyD, All Years"), ""))),x='Sites',y='Infringements')+
+  guides(fill=FALSE)+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.title=element_text(face="bold"))+
+  scale_fill_brewer()
+```
+
+
+Top Five Infringing Sites versus Time (Company: CompanyD)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating vector of site names for company ID = CompanyD to be merged against the top5DF 
+#SO we can get all the associated links
+#Reminder of merge syntax: top5DF<-merge(x = top5PubList, y = allTimeData, by = "company_id", all.x = TRUE)  
+
+top5Sites_CompanyD_list<-top5Sites_CompanyD[,1]
+
+top5DF_CompanyD<-top5DF %>%
+  filter(company_id=='CompanyD')
+
+top5Sites_CompanyD_df<-merge(x = top5Sites_CompanyD_list, y = top5DF_CompanyD, by = "site", all.x = TRUE)
+
+#Making a wide data frame: top5PubInfrgs.wide<-spread(top5PubInfrgs,year,total) 
+
+top5Sites_CompanyD_SitesVYear<-top5Sites_CompanyD_df %>%
+  group_by(site,year) %>%
+  summarise(total = sum(count))
+  
+top5Sites_CompanyD_SitesVYear.wide<-spread(top5Sites_CompanyD_SitesVYear,year,total) 
+
+knitr::kable(top5Sites_CompanyD_SitesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=top5Sites_CompanyD_SitesVYear, aes(x=factor(year), y=total, group=site, colour=site)) +
+    geom_line() +
+    geom_point() +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyD_SitesVYear$total)+5000,5000))+
+  expand_limits(y=max(top5Sites_CompanyD_SitesVYear$total)+5000)+
+  expand_limits(y=-2000)+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyD, Per Year")))),x='Year',y='Infringements')+
+  scale_colour_brewer(palette = "Set1",name="Site")
+  
+```
+
+
+
+
+Top infringing Site (for Company CompanyD)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+topSite_CompanyD_titles<-top5Sites_CompanyD_df %>%
+  filter(site=='uploaded.net') %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+topSite_CompanyD_titles_top5<-topSite_CompanyD_titles[1:5,]
+topSite_CompanyD_titles_top5$english_title<-cbind(c("Title1","Title2","Title3","Title4","Title5"))
+topSite_CompanyD_titles_top5<-select(topSite_CompanyD_titles_top5,group_title,english_title,total)
+knitr::kable(topSite_CompanyD_titles_top5)
+
+
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Need to manually add label names-- special characters not coming through
+ggplot(data=topSite_CompanyD_titles_top5,aes(x=reorder(group_title,-total),y=total,fill=group_title)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyD_titles_top5$total)+200,200))+
+  expand_limits(y=max(topSite_CompanyD_titles_top5$total)+200)+
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyD, Site: uploaded.net")))),x='Title Names',y='Infringements')+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"),
+      plot.margin=unit(c(3,2,1.5,1.2),"lines"),
+      axis.text.x=element_blank(),
+      legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"))+
+  scale_fill_brewer(name="Title Names",
+                    labels=c("Title1","Title2","Title 3","Title 4","Title 5"))
+```
+
+
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Getting associated links again
+topSite_CompanyD_titles_list<-topSite_CompanyD_titles_top5[,1]
+topSite_CompanyD_titles_df<-merge(x = topSite_CompanyD_titles_list, y = top5DF_CompanyD, by = "group_title", all.x = TRUE)
+
+topSite_CompanyD_titlesVYear<-topSite_CompanyD_titles_df %>%
+  group_by(group_title,year) %>%
+  summarise(total=sum(count))
+
+topSite_CompanyD_titlesVYear.wide<-spread(topSite_CompanyD_titlesVYear,year,total) 
+colnames(topSite_CompanyD_titlesVYear.wide)<-c("group_title","y2013","y2014","y2015")
+topSite_CompanyD_titlesVYear.wide$english_title<-cbind(c("Title1","Title2","Title 3","Title 4","Title 5"))
+topSite_CompanyD_titlesVYear.wide<-select(topSite_CompanyD_titlesVYear.wide,group_title,english_title,y2013,y2014,y2015)
+
+knitr::kable(topSite_CompanyD_titlesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=topSite_CompanyD_titlesVYear, aes(x=factor(year), y=total, group=group_title, colour=group_title)) +
+    geom_line() +
+    geom_point()+
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyD_titlesVYear$total)+500,500))+
+  expand_limits(y=max(topSite_CompanyD_titlesVYear$total)+500)+    #expand y axis
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyD, Site: uploaded.net, Per Year"), ""))),x='Year',y='Infringements')+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  scale_colour_brewer(palette = "Set1",name="Title Names",
+                      labels=c("Title1","Title2","Title 3","Title 4","Title 5"))
+```
+
+
+***
+
+
+## Sites Across Time (By Company: CompanyE) 
+Site rank determined overall (total, across three years)
+
+
+Top Five of all time infringing sites (Company: CompanyE)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating the list of top sites for company with ID = CompanyE
+Sites_CompanyE<-top5DF %>%
+  filter(company_id == 'CompanyE') %>%
+  group_by(site) %>% 
+  summarise(total = sum(count)) %>%
+  arrange(desc(total))
+
+#Creating just the Top Five by all time
+top5Sites_CompanyE<-Sites_CompanyE[1:5,]
+knitr::kable(top5Sites_CompanyE)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#http://docs.ggplot2.org/dev/vignettes/themes.html
+ggplot(data=top5Sites_CompanyE,aes(x=reorder(site,-total),y=total,fill=site)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyE$total)+5000,5000))+
+  expand_limits(y=max(top5Sites_CompanyE$total)+5000)+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyE, All Years"), ""))),x='Sites',y='Infringements')+
+  guides(fill=FALSE)+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.title=element_text(face="bold"))+
+  scale_fill_brewer()
+```
+
+
+Top Five Infringing Sites versus Time (Company: CompanyE)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Creating vector of site names for company ID = CompanyE to be merged against the top5DF 
+#SO we can get all the associated links
+#Reminder of merge syntax: top5DF<-merge(x = top5PubList, y = allTimeData, by = "company_id", all.x = TRUE)  
+
+top5Sites_CompanyE_list<-top5Sites_CompanyE[,1]
+
+top5DF_CompanyE<-top5DF %>%
+  filter(company_id=='CompanyE')
+
+top5Sites_CompanyE_df<-merge(x = top5Sites_CompanyE_list, y = top5DF_CompanyE, by = "site", all.x = TRUE)
+
+#Making a wide data frame: top5PubInfrgs.wide<-spread(top5PubInfrgs,year,total) 
+
+top5Sites_CompanyE_SitesVYear<-top5Sites_CompanyE_df %>%
+  group_by(site,year) %>%
+  summarise(total = sum(count))
+  
+top5Sites_CompanyE_SitesVYear.wide<-spread(top5Sites_CompanyE_SitesVYear,year,total) 
+
+knitr::kable(top5Sites_CompanyE_SitesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=top5Sites_CompanyE_SitesVYear, aes(x=factor(year), y=total, group=site, colour=site)) +
+    geom_line() +
+    geom_point() +
+  scale_y_discrete(breaks=seq(0,max(top5Sites_CompanyE_SitesVYear$total)+5000,5000))+
+  expand_limits(y=max(top5Sites_CompanyE_SitesVYear$total)+5000)+
+  expand_limits(y=-2000)+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  labs(title=expression(atop("Top Five Infringing Sites:", atop(italic("Company CompanyE, Per Year")))),x='Year',y='Infringements')+
+  scale_colour_brewer(palette = "Set1",name="Site")
+  
+```
+
+
+
+
+Top infringing Site (for Company CompanyE)
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+topSite_CompanyE_titles<-top5Sites_CompanyE_df %>%
+  filter(site=='lolabits.es') %>%
+  group_by(group_title) %>%
+  summarise(total=sum(count)) %>%
+  arrange(desc(total))
+
+topSite_CompanyE_titles_top5<-topSite_CompanyE_titles[1:5,]
+
+topSite_CompanyE_titles_top5$english_title<-cbind(c("50 Shades of Grey","Dracula (Illustrated Ed)","50 Shades Darker", "Hannibal","The Dark Tower"))
+topSite_CompanyE_titles_top5<-select(topSite_CompanyE_titles_top5,group_title,english_title,total)
+knitr::kable(topSite_CompanyE_titles_top5)
+
+
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+
+ggplot(data=topSite_CompanyE_titles_top5,aes(x=reorder(group_title,-total),y=total,fill=group_title)) +
+  geom_bar(colour="black",stat="identity") +
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyE_titles_top5$total)+200,50))+
+  expand_limits(y=max(topSite_CompanyE_titles_top5$total)+200)+
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyE, Site: lolabits.es")))),x='Title Names',y='Infringements')+
+  theme_bw()+
+  theme(plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"),
+      plot.margin=unit(c(3,2,1.5,1.2),"lines"),
+      axis.text.x=element_blank(),
+      legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"))+
+  scale_fill_brewer(name="Title Names",
+                    labels=c("Title1","Title2","Title3","Title4","Title5"))
+  
+
+```
+
+
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+#Getting associated links again
+topSite_CompanyE_titles_list<-topSite_CompanyE_titles_top5[,1]
+topSite_CompanyE_titles_df<-merge(x = topSite_CompanyE_titles_list, y = top5DF_CompanyE, by = "group_title", all.x = TRUE)
+
+topSite_CompanyE_titlesVYear<-topSite_CompanyE_titles_df %>%
+  group_by(group_title,year) %>%
+  summarise(total=sum(count))
+
+topSite_CompanyE_titlesVYear.wide<-spread(topSite_CompanyE_titlesVYear,year,total) 
+colnames(topSite_CompanyE_titlesVYear.wide)<-c("group_title","y2013","y2014","y2015")
+topSite_CompanyE_titlesVYear.wide$english_title<-cbind(c("Title1","Title2","Title3","Title4","Title5"))
+topSite_CompanyE_titlesVYear.wide<-select(topSite_CompanyE_titlesVYear.wide,group_title,english_title,y2013,y2014,y2015)
+
+knitr::kable(topSite_CompanyE_titlesVYear.wide)
+```
+
+```{r,echo=FALSE,warning=FALSE,error=FALSE}
+ggplot(data=topSite_CompanyE_titlesVYear, aes(x=factor(year), y=total, group=group_title, colour=group_title)) +
+    geom_line() +
+    geom_point()+
+  scale_y_discrete(breaks=seq(0,max(topSite_CompanyE_titlesVYear$total)+300,200))+
+  expand_limits(y=max(topSite_CompanyE_titlesVYear$total)+300)+    #expand y axis
+  labs(title=expression(atop("Top Five Infringed Titles:", atop(italic("Company CompanyE, Site: lolabits.es, Per Year"), ""))),x='Year',y='Infringements')+
+  theme_bw()+
+  theme(legend.background = element_rect(fill="gray90", size=.5, linetype="dotted"),
+        plot.title=element_text(family="Roboto"),
+        axis.title=element_text(face="bold"))+
+  scale_colour_brewer(palette = "Set1",name="Title Names",
+                      labels=c("Title1","Title2","Title3","Title4","Title5"))
+```
+
